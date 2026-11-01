@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.features.discovery.data.TMDBRepository
 import com.example.features.discovery.domain.Movie
+import com.example.features.discovery.domain.Season
 import com.example.core.data.SupabaseManager
 import com.example.features.library.data.WatchlistRepository
 import com.example.features.library.domain.WatchlistItem
@@ -15,7 +16,13 @@ import kotlinx.coroutines.launch
 
 sealed interface DetailsUiState {
     data object Loading : DetailsUiState
-    data class Success(val movie: Movie, val isInWatchlist: Boolean = false) : DetailsUiState
+    data class Success(
+        val movie: Movie,
+        val isInWatchlist: Boolean = false,
+        val selectedSeasonNumber: Int = 1,
+        val currentSeason: Season? = null,
+        val isSeasonLoading: Boolean = false
+    ) : DetailsUiState
     data class Error(val message: String) : DetailsUiState
 }
 
@@ -33,12 +40,59 @@ class DetailsViewModel : ViewModel() {
                 val movie = tmdbRepository.getTitleDetails(id, mediaType)
                 if (movie != null) {
                     val isInWatchlist = watchlistRepository.isInWatchlist(id, mediaType)
-                    _uiState.value = DetailsUiState.Success(movie, isInWatchlist)
+                    
+                    // If it is a TV show, prefetch the first season
+                    if (mediaType.equals("tv", ignoreCase = true)) {
+                        val firstSeasonNumber = movie.seasons?.firstOrNull { it.seasonNumber > 0 }?.seasonNumber ?: 1
+                        _uiState.value = DetailsUiState.Success(
+                            movie = movie,
+                            isInWatchlist = isInWatchlist,
+                            selectedSeasonNumber = firstSeasonNumber,
+                            isSeasonLoading = true
+                        )
+                        loadSeason(id, firstSeasonNumber)
+                    } else {
+                        _uiState.value = DetailsUiState.Success(
+                            movie = movie,
+                            isInWatchlist = isInWatchlist
+                        )
+                    }
                 } else {
-                    _uiState.value = DetailsUiState.Error("Failed to load title details")
+                    _uiState.value = DetailsUiState.Error("Unable to load title details.")
                 }
             } catch (e: Exception) {
-                _uiState.value = DetailsUiState.Error(e.message ?: "An unexpected error occurred")
+                _uiState.value = DetailsUiState.Error(e.message ?: "An unexpected error occurred.")
+            }
+        }
+    }
+
+    fun selectSeason(seasonNumber: Int) {
+        val currentState = _uiState.value
+        if (currentState is DetailsUiState.Success) {
+            _uiState.value = currentState.copy(
+                selectedSeasonNumber = seasonNumber,
+                isSeasonLoading = true
+            )
+            loadSeason(currentState.movie.id, seasonNumber)
+        }
+    }
+
+    private fun loadSeason(tvId: Int, seasonNumber: Int) {
+        viewModelScope.launch {
+            try {
+                val season = tmdbRepository.getSeasonDetails(tvId, seasonNumber)
+                val currentState = _uiState.value
+                if (currentState is DetailsUiState.Success && currentState.movie.id == tvId) {
+                    _uiState.value = currentState.copy(
+                        currentSeason = season,
+                        isSeasonLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                val currentState = _uiState.value
+                if (currentState is DetailsUiState.Success) {
+                    _uiState.value = currentState.copy(isSeasonLoading = false)
+                }
             }
         }
     }
@@ -46,25 +100,27 @@ class DetailsViewModel : ViewModel() {
     fun toggleWatchlist() {
         val currentState = _uiState.value
         if (currentState is DetailsUiState.Success) {
+            val movie = currentState.movie
+            val newWatchlistState = !currentState.isInWatchlist
+
+            // Optimistic UI update
+            _uiState.value = currentState.copy(isInWatchlist = newWatchlistState)
+
             viewModelScope.launch {
-                val movie = currentState.movie
-                val userId = SupabaseManager.client?.auth?.currentUserOrNull()?.id ?: return@launch
-                
-                if (currentState.isInWatchlist) {
-                    if (watchlistRepository.removeFromWatchlist(movie.id, movie.mediaType ?: "movie")) {
-                        _uiState.value = currentState.copy(isInWatchlist = false)
-                    }
-                } else {
+                val userId = SupabaseManager.client?.auth?.currentUserOrNull()?.id ?: "local_user"
+                val mediaType = movie.mediaType ?: "movie"
+
+                if (newWatchlistState) {
                     val item = WatchlistItem(
                         userId = userId,
                         tmdbId = movie.id,
-                        mediaType = movie.mediaType ?: "movie",
+                        mediaType = mediaType,
                         title = movie.title ?: movie.name ?: "Unknown",
                         posterPath = movie.posterPath
                     )
-                    if (watchlistRepository.addToWatchlist(item)) {
-                        _uiState.value = currentState.copy(isInWatchlist = true)
-                    }
+                    watchlistRepository.addToWatchlist(item)
+                } else {
+                    watchlistRepository.removeFromWatchlist(movie.id, mediaType)
                 }
             }
         }

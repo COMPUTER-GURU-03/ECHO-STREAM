@@ -31,10 +31,11 @@ import com.example.features.authentication.presentation.RegisterScreen
 import com.example.features.authentication.presentation.VerificationNoticeScreen
 import com.example.features.authentication.presentation.ForgotPasswordScreen
 import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -58,12 +59,14 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
+                val isPlayerScreen = currentRoute?.contains("Player", ignoreCase = true) == true
                 val isAuthScreen = authState !is AuthUiState.Authenticated
+                val showBottomBar = !isAuthScreen && !isPlayerScreen
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        if (!isAuthScreen) {
+                        if (showBottomBar) {
                             Box(modifier = Modifier
                                 .padding(horizontal = 16.dp, vertical = 24.dp)
                                 .navigationBarsPadding()
@@ -87,11 +90,15 @@ class MainActivity : ComponentActivity() {
                     NavHost(
                         navController = navController,
                         startDestination = if (authState is AuthUiState.Authenticated) Screen.Home else Screen.Auth,
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = if (isPlayerScreen) Modifier.fillMaxSize() else Modifier.padding(innerPadding)
                     ) {
                         composable<Screen.Auth> {
                             var authSubScreen by remember { mutableStateOf("login") }
                             var registeredEmail by remember { mutableStateOf("") }
+
+                            BackHandler(enabled = authSubScreen != "login") {
+                                authSubScreen = "login"
+                            }
 
                             when (authSubScreen) {
                                 "verification" -> {
@@ -149,6 +156,16 @@ class MainActivity : ComponentActivity() {
                                 viewModel = homeViewModel,
                                 onMovieClick = { movie ->
                                     navController.navigate(Screen.TitleDetails(movie.id, movie.mediaType ?: "movie"))
+                                },
+                                onPlayProgressClick = { progress ->
+                                    navController.navigate(
+                                        Screen.Player(
+                                            tmdbId = progress.tmdbId,
+                                            mediaType = progress.mediaType,
+                                            title = progress.title,
+                                            posterPath = progress.posterPath
+                                        )
+                                    )
                                 }
                             )
                         }
@@ -170,7 +187,14 @@ class MainActivity : ComponentActivity() {
                                 viewModel = detailsViewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onPlayClick = { movie ->
-                                    navController.navigate(Screen.Player(movie.id, movie.mediaType ?: "movie"))
+                                    navController.navigate(
+                                        Screen.Player(
+                                            tmdbId = movie.id,
+                                            mediaType = movie.mediaType ?: "movie",
+                                            title = movie.displayTitle,
+                                            posterPath = movie.posterPath
+                                        )
+                                    )
                                 }
                             )
                         }
@@ -196,14 +220,11 @@ class MainActivity : ComponentActivity() {
                         composable<Screen.Player> { backStackEntry ->
                             val playerArgs: Screen.Player = backStackEntry.toRoute()
                             val playerViewModel: com.example.features.playback.presentation.PlayerViewModel = viewModel()
-                            val movie = com.example.features.discovery.domain.Movie(
-                                id = playerArgs.tmdbId,
-                                title = "Loading...",
-                                mediaType = playerArgs.mediaType,
-                                posterPath = null
-                            )
                             com.example.features.playback.presentation.PlayerScreen(
-                                movie = movie,
+                                tmdbId = playerArgs.tmdbId,
+                                mediaType = playerArgs.mediaType,
+                                title = playerArgs.title,
+                                posterPath = playerArgs.posterPath,
                                 viewModel = playerViewModel,
                                 onBackClick = { navController.popBackStack() }
                             )
@@ -228,7 +249,7 @@ fun MovieDBBottomNavigation(
         val items = listOf(
             NavigationItem("Home", Screen.Home, Icons.Default.Home),
             NavigationItem("Discover", Screen.Discover, Icons.Default.Search),
-            NavigationItem("Library", Screen.Library, Icons.Default.LibraryBooks),
+            NavigationItem("Library", Screen.Library, Icons.AutoMirrored.Filled.LibraryBooks),
             NavigationItem("Downloads", Screen.Downloads, Icons.Default.Download),
             NavigationItem("Profile", Screen.Profile, Icons.Default.Person)
         )

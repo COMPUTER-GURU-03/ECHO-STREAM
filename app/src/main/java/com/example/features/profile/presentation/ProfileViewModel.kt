@@ -42,8 +42,15 @@ class ProfileViewModel : ViewModel() {
                     _uiState.value = ProfileUiState.Success(profile, user.email ?: "")
                 } else {
                     // Create default profile if not found
-                    val newProfile = Profile(userId = user.id, displayName = user.userMetadata?.get("display_name")?.toString())
-                    repository.updateProfile(newProfile) // This act as upsert in version 2.x often
+                    val metaName = user.userMetadata?.get("display_name")?.toString()?.removeSurrounding("\"")
+                    val newProfile = Profile(
+                        id = user.id,
+                        userId = user.id,
+                        email = user.email,
+                        displayName = metaName,
+                        subscriptionTier = "Standard Cinema"
+                    )
+                    repository.updateProfile(newProfile)
                     _uiState.value = ProfileUiState.Success(newProfile, user.email ?: "")
                 }
             } else {

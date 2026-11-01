@@ -22,7 +22,12 @@ sealed interface Screen {
     data class TitleDetails(val tmdbId: Int, val mediaType: String) : Screen
 
     @Serializable
-    data class Player(val tmdbId: Int, val mediaType: String) : Screen
+    data class Player(
+        val tmdbId: Int,
+        val mediaType: String,
+        val title: String? = null,
+        val posterPath: String? = null
+    ) : Screen
 
     @Serializable
     data object Auth : Screen

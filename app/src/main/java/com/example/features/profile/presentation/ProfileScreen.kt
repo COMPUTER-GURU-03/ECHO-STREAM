@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.core.ui.GlassSurface
 import com.example.core.ui.glassEffect
+import com.example.features.profile.domain.Profile
 import com.example.ui.theme.ElectricIndigo
 import com.example.ui.theme.SecondaryText
 
@@ -44,7 +45,7 @@ fun ProfileScreen(
             }
             is ProfileUiState.Success -> {
                 ProfileContent(
-                    displayName = state.profile.displayName ?: "User",
+                    profile = state.profile,
                     email = state.email,
                     onUpdateName = { viewModel.updateDisplayName(it) },
                     onLogout = onLogoutClick
@@ -56,13 +57,13 @@ fun ProfileScreen(
 
 @Composable
 fun ProfileContent(
-    displayName: String,
+    profile: Profile,
     email: String,
     onUpdateName: (String) -> Unit,
     onLogout: () -> Unit
 ) {
     var isEditingName by remember { mutableStateOf(false) }
-    var editedName by remember { mutableStateOf(displayName) }
+    var editedName by remember { mutableStateOf(profile.effectiveDisplayName) }
 
     Column(
         modifier = Modifier
@@ -70,25 +71,43 @@ fun ProfileContent(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(64.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
-        // Profile Picture Placeholder
+        // Profile Avatar with Initials or custom image
         Box(
             modifier = Modifier
-                .size(100.dp)
+                .size(96.dp)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(listOf(ElectricIndigo, Color(0xFF8A84FF)))),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                modifier = Modifier.size(50.dp),
-                tint = Color.White
+            Text(
+                text = profile.initials,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Subscription Tier Badge
+        val tier = profile.subscriptionTier ?: "Standard Cinema"
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(ElectricIndigo.copy(alpha = 0.2f))
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = tier,
+                color = ElectricIndigo,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (isEditingName) {
             TextField(
@@ -119,8 +138,8 @@ fun ProfileContent(
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.displaySmall,
+                    text = profile.effectiveDisplayName,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
@@ -137,19 +156,19 @@ fun ProfileContent(
 
         Text(
             text = email,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = SecondaryText,
             modifier = Modifier.padding(top = 4.dp)
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(36.dp))
 
-        // Profile Menu Items (Placeholders)
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            ProfileMenuItem(title = "App Settings")
-            ProfileMenuItem(title = "Subscription")
-            ProfileMenuItem(title = "Account Security")
-            ProfileMenuItem(title = "Help & Support")
+        // Profile Menu Items
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            ProfileMenuItem(title = "App & Streaming Settings")
+            ProfileMenuItem(title = "Manage Subscription ($tier)")
+            ProfileMenuItem(title = "Account Security & Password")
+            ProfileMenuItem(title = "Help Center & FAQ")
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -165,7 +184,7 @@ fun ProfileContent(
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(Icons.Default.Logout, contentDescription = null)
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Logout", style = MaterialTheme.typography.titleLarge)
         }

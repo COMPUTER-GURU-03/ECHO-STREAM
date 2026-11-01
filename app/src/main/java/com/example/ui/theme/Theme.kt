@@ -38,9 +38,9 @@ fun MovieDBTheme(
         SideEffect {
             val activity = view.context as? Activity
             activity?.window?.let { window ->
-                window.statusBarColor = DeepBlack.toArgb()
-                window.navigationBarColor = DeepBlack.toArgb()
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                insetsController.isAppearanceLightStatusBars = false
+                insetsController.isAppearanceLightNavigationBars = false
             }
         }
     }
