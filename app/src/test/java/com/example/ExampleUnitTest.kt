@@ -46,4 +46,24 @@ class ExampleUnitTest {
         )
         assertTrue(almostDone.isFinished)
     }
+
+    @Test
+    fun authRepository_inputValidation_flagsInvalidInputs() = kotlinx.coroutines.test.runTest {
+        val repo = com.example.features.authentication.data.AuthRepository()
+        val emptyEmailResult = repo.signIn("", "password123")
+        assertTrue(emptyEmailResult.isFailure)
+
+        val emptyPasswordResult = repo.signIn("user@example.com", "")
+        assertTrue(emptyPasswordResult.isFailure)
+
+        val invalidFormatResult = repo.signIn("invalid-email", "password123")
+        assertTrue(invalidFormatResult.isFailure)
+    }
+
+    @Test
+    fun supabaseConfig_isConfiguredAndAuthAvailable() {
+        assertTrue(com.example.core.data.SupabaseConfig.isConfigured)
+        assertEquals("https://yihabvxwytdfpgtiawex.supabase.co", com.example.core.data.SupabaseConfig.supabaseUrl)
+        assertTrue(com.example.core.data.SupabaseConfig.supabaseAnonKey.startsWith("ey"))
+    }
 }

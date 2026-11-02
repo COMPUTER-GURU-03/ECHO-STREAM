@@ -90,7 +90,11 @@ class MainActivity : ComponentActivity() {
                     NavHost(
                         navController = navController,
                         startDestination = if (authState is AuthUiState.Authenticated) Screen.Home else Screen.Auth,
-                        modifier = if (isPlayerScreen) Modifier.fillMaxSize() else Modifier.padding(innerPadding)
+                        modifier = if (isPlayerScreen) Modifier.fillMaxSize() else Modifier.padding(innerPadding),
+                        enterTransition = { androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(300)) },
+                        exitTransition = { androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300)) },
+                        popEnterTransition = { androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(300)) },
+                        popExitTransition = { androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300)) }
                     ) {
                         composable<Screen.Auth> {
                             var authSubScreen by remember { mutableStateOf("login") }
@@ -133,6 +137,7 @@ class MainActivity : ComponentActivity() {
                                         onLoginClick = { email, pass -> authViewModel.login(email, pass) },
                                         onRegisterClick = { authSubScreen = "register" },
                                         onForgotPasswordClick = { authSubScreen = "forgot" },
+                                        onExploreAsGuest = { authViewModel.continueAsGuest() },
                                         isLoading = authState is AuthUiState.Loading,
                                         errorMessage = (authState as? AuthUiState.Error)?.message,
                                         onDismissError = { authViewModel.clearError() }

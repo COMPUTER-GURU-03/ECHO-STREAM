@@ -2,15 +2,14 @@ package com.example.features.authentication.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.core.data.SupabaseManager
-import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.gotrue.providers.builtin.Email
+import com.example.core.data.SupabaseConfig
+import com.example.features.authentication.data.AuthRepository
+import io.github.jan.supabase.gotrue.SessionStatus
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 sealed interface AuthUiState {
     data object Idle : AuthUiState
@@ -20,82 +19,120 @@ sealed interface AuthUiState {
     data object NeedsVerification : AuthUiState
 }
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(
+    private val repository: AuthRepository = AuthRepository()
+) : ViewModel() {
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    private val auth = SupabaseManager.client?.auth
+    private var sessionJob: Job? = null
 
     init {
-        if (SupabaseManager.client == null) {
-            _uiState.value = AuthUiState.Error("Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY in the Secrets panel.")
-        } else {
-            checkSession()
-        }
+        initializeAuth()
     }
 
-    private fun checkSession() {
-        viewModelScope.launch {
-            auth?.let {
-                val session = it.currentSessionOrNull()
-                if (session != null) {
+    fun continueAsGuest() {
+        _uiState.value = AuthUiState.Authenticated
+    }
+
+    fun initializeAuth() {
+        SupabaseConfig.initialize()
+        sessionJob?.cancel()
+        sessionJob = viewModelScope.launch {
+            try {
+                if (repository.isUserLoggedIn) {
                     _uiState.value = AuthUiState.Authenticated
                 }
+
+                repository.sessionStatus.collect { status ->
+                    when (status) {
+                        is SessionStatus.Authenticated -> {
+                            _uiState.value = AuthUiState.Authenticated
+                        }
+                        is SessionStatus.NotAuthenticated -> {
+                            if (_uiState.value is AuthUiState.Authenticated) {
+                                _uiState.value = AuthUiState.Idle
+                            }
+                        }
+                        is SessionStatus.LoadingFromStorage -> {
+                            // Waiting for session to be restored from local storage
+                        }
+                        is SessionStatus.NetworkError -> {
+                            if (repository.isUserLoggedIn) {
+                                _uiState.value = AuthUiState.Authenticated
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Silently retain current state if session collection is interrupted
             }
         }
     }
 
-    fun login(emailInput: String, passwordInput: String) {
+    /**
+     * Signs in a user using Supabase Auth Email/Password.
+     */
+    fun signIn(emailInput: String, passwordInput: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-            try {
-                val currentAuth = auth ?: throw Exception("Auth not initialized")
-                currentAuth.signInWith(Email) {
-                    email = emailInput
-                    password = passwordInput
+            val result = repository.signIn(emailInput, passwordInput)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = AuthUiState.Authenticated
+                },
+                onFailure = { error ->
+                    _uiState.value = AuthUiState.Error(error.message ?: "Sign-in failed.")
                 }
-                _uiState.value = AuthUiState.Authenticated
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error(e.message ?: "Login failed")
-            }
+            )
         }
     }
 
+    // Alias for backward compatibility with UI components
+    fun login(emailInput: String, passwordInput: String) = signIn(emailInput, passwordInput)
+
+    /**
+     * Signs up a new user using Supabase Auth.
+     */
     fun signUp(emailInput: String, passwordInput: String, name: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-            try {
-                val currentAuth = auth ?: throw Exception("Auth not initialized")
-                currentAuth.signUpWith(Email) {
-                    email = emailInput
-                    password = passwordInput
-                    data = buildJsonObject {
-                        put("display_name", name)
-                    }
+            val result = repository.signUp(emailInput, passwordInput, name)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = AuthUiState.Authenticated
+                },
+                onFailure = { error ->
+                    _uiState.value = AuthUiState.Error(error.message ?: "Sign-up failed.")
                 }
-                _uiState.value = AuthUiState.NeedsVerification
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error(e.message ?: "Sign up failed")
-            }
+            )
         }
     }
 
+    /**
+     * Requests a password reset email via Supabase Auth.
+     */
     fun resetPassword(emailInput: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-            try {
-                val currentAuth = auth ?: throw Exception("Auth not initialized")
-                currentAuth.resetPasswordForEmail(emailInput)
-                _uiState.value = AuthUiState.Idle // Or a specific success state
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error(e.message ?: "Reset request failed")
-            }
+            val result = repository.resetPassword(emailInput)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = AuthUiState.Idle
+                },
+                onFailure = { error ->
+                    _uiState.value = AuthUiState.Error(error.message ?: "Reset request failed.")
+                }
+            )
         }
     }
 
+    /**
+     * Signs out from Supabase Auth session.
+     */
     fun logout() {
         viewModelScope.launch {
-            auth?.signOut()
+            repository.signOut()
             _uiState.value = AuthUiState.Idle
         }
     }

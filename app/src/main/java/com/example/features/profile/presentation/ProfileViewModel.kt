@@ -25,11 +25,7 @@ class ProfileViewModel : ViewModel() {
     private val auth = SupabaseManager.client?.auth
 
     init {
-        if (SupabaseManager.client == null) {
-            _uiState.value = ProfileUiState.Error("Supabase not configured")
-        } else {
-            loadProfile()
-        }
+        loadProfile()
     }
 
     private fun loadProfile() {
@@ -54,7 +50,14 @@ class ProfileViewModel : ViewModel() {
                     _uiState.value = ProfileUiState.Success(newProfile, user.email ?: "")
                 }
             } else {
-                _uiState.value = ProfileUiState.Error("User not logged in")
+                val guestProfile = Profile(
+                    id = "guest_user",
+                    userId = "guest_user",
+                    displayName = "Cinema Guest",
+                    email = "guest@moviedb.internal",
+                    subscriptionTier = "Preview Pass"
+                )
+                _uiState.value = ProfileUiState.Success(guestProfile, "guest@moviedb.internal")
             }
         }
     }

@@ -34,23 +34,33 @@ class TMDBRepository {
         }
 
     suspend fun getTrendingMovies(): List<Movie> = withContext(Dispatchers.IO) {
-        fetchEndpoint("trending/movie/week").map { it.copy(mediaType = it.mediaType ?: "movie") }
+        val result = fetchEndpoint("trending/movie/week").map { it.copy(mediaType = it.mediaType ?: "movie") }
+        if (result.isNotEmpty()) result else CuratedCinemaData.trendingMovies
     }
 
     suspend fun getPopularMovies(): List<Movie> = withContext(Dispatchers.IO) {
-        fetchEndpoint("movie/popular").map { it.copy(mediaType = "movie") }
+        val result = fetchEndpoint("movie/popular").map { it.copy(mediaType = "movie") }
+        if (result.isNotEmpty()) result else CuratedCinemaData.popularMovies
     }
 
     suspend fun getPopularTVShows(): List<Movie> = withContext(Dispatchers.IO) {
-        fetchEndpoint("tv/popular").map { it.copy(mediaType = "tv") }
+        val result = fetchEndpoint("tv/popular").map { it.copy(mediaType = "tv") }
+        if (result.isNotEmpty()) result else CuratedCinemaData.popularTV
     }
 
     suspend fun getTopRatedMovies(): List<Movie> = withContext(Dispatchers.IO) {
-        fetchEndpoint("movie/top_rated").map { it.copy(mediaType = "movie") }
+        val result = fetchEndpoint("movie/top_rated").map { it.copy(mediaType = "movie") }
+        if (result.isNotEmpty()) result else CuratedCinemaData.topRated
     }
 
     suspend fun search(query: String): List<Movie> = withContext(Dispatchers.IO) {
-        fetchEndpoint("search/multi", mapOf("query" to query))
+        val result = fetchEndpoint("search/multi", mapOf("query" to query))
+        if (result.isNotEmpty()) result else {
+            CuratedCinemaData.trendingMovies.filter {
+                it.displayTitle.contains(query, ignoreCase = true) ||
+                        (it.overview?.contains(query, ignoreCase = true) == true)
+            }
+        }
     }
 
     suspend fun getTitleDetails(id: Int, mediaType: String): Movie? = withContext(Dispatchers.IO) {
@@ -101,7 +111,7 @@ class TMDBRepository {
             }
         }
 
-        null
+        CuratedCinemaData.findById(id)
     }
 
     suspend fun getSeasonDetails(tvId: Int, seasonNumber: Int): Season? = withContext(Dispatchers.IO) {
@@ -148,7 +158,7 @@ class TMDBRepository {
             }
         }
 
-        null
+        CuratedCinemaData.findById(tvId)?.seasons?.find { it.seasonNumber == seasonNumber }
     }
 
     private suspend fun fetchEndpoint(endpoint: String, params: Map<String, String> = emptyMap()): List<Movie> {

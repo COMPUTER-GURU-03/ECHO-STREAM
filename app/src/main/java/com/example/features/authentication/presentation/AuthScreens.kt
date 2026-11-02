@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import com.example.core.ui.glassEffect
 import com.example.ui.theme.ElectricIndigo
 import com.example.ui.theme.SecondaryText
@@ -31,6 +32,7 @@ fun LoginScreen(
     onLoginClick: (String, String) -> Unit,
     onRegisterClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
+    onExploreAsGuest: () -> Unit = {},
     isLoading: Boolean,
     errorMessage: String? = null,
     onDismissError: () -> Unit = {}
@@ -65,7 +67,8 @@ fun LoginScreen(
             onValueChange = { email = it },
             label = "Email Address",
             icon = Icons.Default.Email,
-            keyboardType = KeyboardType.Email
+            keyboardType = KeyboardType.Email,
+            modifier = Modifier.testTag("email_input")
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -78,11 +81,15 @@ fun LoginScreen(
             keyboardType = KeyboardType.Password,
             isPassword = true,
             passwordVisible = passwordVisible,
-            onPasswordToggle = { passwordVisible = !passwordVisible }
+            onPasswordToggle = { passwordVisible = !passwordVisible },
+            modifier = Modifier.testTag("password_input")
         )
 
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            TextButton(onClick = onForgotPasswordClick) {
+            TextButton(
+                onClick = onForgotPasswordClick,
+                modifier = Modifier.testTag("forgot_password_button")
+            ) {
                 Text("Forgot Password?", color = ElectricIndigo, style = MaterialTheme.typography.labelLarge)
             }
         }
@@ -93,7 +100,8 @@ fun LoginScreen(
             onClick = { onLoginClick(email, password) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .height(56.dp)
+                .testTag("login_button"),
             enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ElectricIndigo)
@@ -105,18 +113,39 @@ fun LoginScreen(
                     strokeWidth = 2.dp
                 )
             } else {
-                Text(text = "Login", style = MaterialTheme.typography.titleLarge)
+                Text(text = "Sign In", style = MaterialTheme.typography.titleLarge)
             }
         }
 
         Row(
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Don't have an account?", color = SecondaryText)
-            TextButton(onClick = onRegisterClick) {
+            TextButton(
+                onClick = onRegisterClick,
+                modifier = Modifier.testTag("register_nav_button")
+            ) {
                 Text("Register", color = ElectricIndigo, fontWeight = FontWeight.Bold)
             }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(
+            onClick = onExploreAsGuest,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("guest_button"),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.White.copy(alpha = 0.06f),
+                contentColor = Color.White
+            ),
+            border = null
+        ) {
+            Text("Explore Catalog as Guest", style = MaterialTheme.typography.labelLarge)
         }
     }
 
@@ -389,12 +418,13 @@ fun AuthTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
     passwordVisible: Boolean = false,
-    onPasswordToggle: () -> Unit = {}
+    onPasswordToggle: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .glassEffect(12.dp),
         placeholder = { Text(label, color = Color.White.copy(alpha = 0.5f)) },
